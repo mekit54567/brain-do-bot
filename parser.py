@@ -43,8 +43,14 @@ def parse_questions(path: str) -> list[dict]:
     """
     questions = _parse_regular(path)
 
-    # Если нашли мало вопросов — пробуем через ИИ
-    if len(questions) < 2:
+    # Считаем сколько параграфов в файле вообще
+    doc = Document(path)
+    total_paras = sum(1 for p in doc.paragraphs if p.text.strip())
+
+    # Если нашли мало вопросов относительно объёма файла — пробуем через ИИ
+    # (примерно 4-6 строк на вопрос в среднем)
+    expected_min = max(1, total_paras // 8)
+    if len(questions) < expected_min:
         ai_questions = _parse_with_llama(path)
         if ai_questions and len(ai_questions) > len(questions):
             return ai_questions
