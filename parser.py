@@ -38,22 +38,15 @@ def clean(text: str) -> str:
 
 def parse_questions(path: str) -> list[dict]:
     """
-    Сначала пробует обычный парсер.
-    Если нашёл мало вопросов — подключает Llama 4 Scout.
+    1. Обычный парсер разбирает файл
+    2. Groq Scout всегда проверяет и дополняет результат
     """
     questions = _parse_regular(path)
-
-    # Считаем сколько параграфов в файле вообще
-    doc = Document(path)
-    total_paras = sum(1 for p in doc.paragraphs if p.text.strip())
-
-    # Если нашли мало вопросов относительно объёма файла — пробуем через ИИ
-    # (примерно 4-6 строк на вопрос в среднем)
-    expected_min = max(1, total_paras // 8)
-    if len(questions) < expected_min:
-        ai_questions = _parse_with_llama(path)
-        if ai_questions and len(ai_questions) > len(questions):
-            return ai_questions
+    
+    # Scout всегда проверяет — вдруг нашёл больше или исправил
+    ai_questions = _parse_with_llama(path, existing=questions)
+    if ai_questions and len(ai_questions) >= len(questions):
+        return ai_questions
 
     return questions
 
@@ -125,31 +118,43 @@ def _parse_regular(path: str) -> list[dict]:
     return questions
 
 
-def _parse_with_llama(path: str) -> list[dict]:
-    """Резервный парсер через Llama 4 Scout (Groq)."""
+def _parse_with_llama(path: str, existing: list = None) -> list[dict]:
+    """Проверка и дополнение через Llama 4 Scout (Groq)."""
     groq_key = os.environ.get("GROQ_API_KEY")
     if not groq_key:
         return []
 
-    # Читаем текст из docx
     doc = Document(path)
     text = "\n".join(
         p.text.replace('\xa0', ' ').strip()
         for p in doc.paragraphs
         if p.text.strip()
-    )[:8000]  # ограничиваем чтобы не превысить лимит
+    )[:8000]
+
+    existing_json = json.dumps(
+        [{"number": q["number"], "question": q["question"], "answer": q["answer"]} 
+         for q in (existing or [])],
+        ensure_ascii=False
+    )
 
     prompt = f"""Ты помощник который извлекает вопросы и ответы из текста Brain-Do (интеллектуальная игра).
 
-Извлеки все пары вопрос-ответ из текста ниже.
-Верни ТОЛЬКО валидный JSON массив без каких-либо пояснений:
+Уже найденные вопросы (могут быть неполными или содержать ошибки):
+{existing_json}
+
+Исходный текст:
+{text}
+
+Задача:
+1. Проверь найденные вопросы — исправь если что-то не так
+2. Добавь вопросы которые пропустили
+3. Игнорируй служебные строки (названия турниров, даты, редакторские пометки)
+
+Верни ТОЛЬКО валидный JSON массив без пояснений:
 [
   {{"number": 1, "question": "текст вопроса", "answer": "текст ответа", "comment": "комментарий или null"}},
   ...
-]
-
-Текст:
-{text}"""
+]"""
 
     try:
         response = requests.post(
@@ -168,8 +173,6 @@ def _parse_with_llama(path: str) -> list[dict]:
         )
         data = response.json()
         raw = data["choices"][0]["message"]["content"]
-
-        # Чистим JSON от возможных markdown блоков
         raw = re.sub(r"```json|```", "", raw).strip()
         items = json.loads(raw)
 
