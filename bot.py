@@ -233,11 +233,31 @@ async def do_generate(message, ctx, questions, settings):
     finally:
         os.unlink(out_path)
 
+# ─── Простой веб-сервер для Render ───────────────────────────────────────────
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import threading
+
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"OK")
+    def log_message(self, *args):
+        pass  # Глушим логи
+
+def run_web_server():
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(("0.0.0.0", port), HealthHandler)
+    server.serve_forever()
+
 # ─── Запуск ──────────────────────────────────────────────────────────────────
 def main():
     token = os.environ.get("BOT_TOKEN")
     if not token:
         raise RuntimeError("Задай переменную окружения BOT_TOKEN")
+
+    # Запускаем веб-сервер в фоне (для Render)
+    threading.Thread(target=run_web_server, daemon=True).start()
 
     app = Application.builder().token(token).build()
 
