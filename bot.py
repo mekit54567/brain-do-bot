@@ -243,7 +243,7 @@ class HealthHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b"OK")
     def log_message(self, *args):
-        pass  # Глушим логи
+        pass
 
 def run_web_server():
     port = int(os.environ.get("PORT", 8080))
@@ -251,7 +251,7 @@ def run_web_server():
     server.serve_forever()
 
 # ─── Запуск ──────────────────────────────────────────────────────────────────
-def main():
+async def main():
     token = os.environ.get("BOT_TOKEN")
     if not token:
         raise RuntimeError("Задай переменную окружения BOT_TOKEN")
@@ -268,7 +268,8 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_callback))
 
     logger.info("Бот запущен!")
-    app.run_polling()
+    await app.run_polling()
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(main())
