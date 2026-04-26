@@ -236,6 +236,7 @@ async def do_generate(message, ctx, questions, settings):
 # ─── Простой веб-сервер для Render ───────────────────────────────────────────
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
+import asyncio
 
 class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -251,13 +252,10 @@ def run_web_server():
     server.serve_forever()
 
 # ─── Запуск ──────────────────────────────────────────────────────────────────
-def main():
+async def run_bot():
     token = os.environ.get("BOT_TOKEN")
     if not token:
         raise RuntimeError("Задай переменную окружения BOT_TOKEN")
-
-    # Запускаем веб-сервер в фоне (для Render)
-    threading.Thread(target=run_web_server, daemon=True).start()
 
     app = Application.builder().token(token).build()
 
@@ -268,7 +266,15 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_callback))
 
     logger.info("Бот запущен!")
-    app.run_polling(stop_signals=None)
+
+    async with app:
+        await app.start()
+        await app.updater.start_polling()
+        # Держим бота запущенным
+        while True:
+            await asyncio.sleep(3600)
 
 if __name__ == "__main__":
-    main()
+    # Запускаем веб-сервер в фоне (для Render)
+    threading.Thread(target=run_web_server, daemon=True).start()
+    asyncio.run(run_bot())
