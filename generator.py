@@ -172,7 +172,19 @@ def update_content_types(unpacked, num_slides):
     tree.write(ct_path, xml_declaration=True, encoding="utf-8", pretty_print=True)
 
 
-# ─── Заполнение слайдов ──────────────────────────────────────────────────────
+def auto_sz(text: str, base: int = 4600, min_sz: int = 2200) -> int:
+    """Автоподбор размера шрифта по длине текста."""
+    length = len(text)
+    if length <= 80:
+        return base
+    elif length <= 150:
+        return int(base * 0.85)
+    elif length <= 250:
+        return int(base * 0.70)
+    elif length <= 400:
+        return int(base * 0.55)
+    else:
+        return max(min_sz, int(base * 0.45))
 
 def find_shapes(root):
     """Возвращает все sp элементы с их шириной."""
@@ -201,7 +213,8 @@ def apply_question(root, q, show_numbering, timer, theme):
         else:
             # Большое поле — текст вопроса
             clear_tf(tf)
-            add_paragraph(tf, q["question"], sz=4600, color=theme["text"])
+            sz = auto_sz(q["question"])
+            add_paragraph(tf, q["question"], sz=sz, color=theme["text"])
             if timer:
                 add_paragraph(tf, f"⏱ {timer} секунд", sz=2200,
                                italic=True, color=theme["accent"])
