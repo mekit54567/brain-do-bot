@@ -251,7 +251,7 @@ def run_web_server():
     server.serve_forever()
 
 # ─── Запуск ──────────────────────────────────────────────────────────────────
-async def main():
+def main():
     token = os.environ.get("BOT_TOKEN")
     if not token:
         raise RuntimeError("Задай переменную окружения BOT_TOKEN")
@@ -268,8 +268,7 @@ async def main():
     app.add_handler(CallbackQueryHandler(handle_callback))
 
     logger.info("Бот запущен!")
-    await app.run_polling()
+    app.run_polling(stop_signals=None)
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    main()
