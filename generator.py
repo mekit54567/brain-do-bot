@@ -12,7 +12,7 @@ import tempfile
 from lxml import etree
 
 TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "template.pptx")
-SCRIPTS = "/mnt/skills/public/pptx/scripts"
+SCRIPTS = os.path.dirname(__file__)  # скрипты лежат рядом с generator.py
 
 A = "http://schemas.openxmlformats.org/drawingml/2006/main"
 P = "http://schemas.openxmlformats.org/presentationml/2006/main"
@@ -39,7 +39,7 @@ def generate_presentation(questions: list, output_path: str, settings: dict):
         unpacked = os.path.join(tmpdir, "unpacked")
 
         result = subprocess.run(
-            ["python3", f"{SCRIPTS}/office/unpack.py", TEMPLATE_PATH, unpacked],
+            ["python3", f"{SCRIPTS}/unpack.py", TEMPLATE_PATH, unpacked],
             capture_output=True, text=True
         )
         if result.returncode != 0:
@@ -144,7 +144,7 @@ def generate_presentation(questions: list, output_path: str, settings: dict):
         update_content_types(unpacked, new_slide_num - 1)
 
         result = subprocess.run(
-            ["python3", f"{SCRIPTS}/office/pack.py", unpacked, output_path,
+            ["python3", f"{SCRIPTS}/pack.py", unpacked, output_path,
              "--original", TEMPLATE_PATH, "--validate", "false"],
             capture_output=True, text=True
         )
