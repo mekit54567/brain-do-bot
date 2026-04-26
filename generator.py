@@ -172,19 +172,21 @@ def update_content_types(unpacked, num_slides):
     tree.write(ct_path, xml_declaration=True, encoding="utf-8", pretty_print=True)
 
 
-def auto_sz(text: str, base: int = 4600, min_sz: int = 2200) -> int:
+def auto_sz(text: str, base: int = 6000, min_sz: int = 2600) -> int:
     """Автоподбор размера шрифта по длине текста."""
     length = len(text)
-    if length <= 80:
-        return base
-    elif length <= 150:
-        return int(base * 0.85)
-    elif length <= 250:
-        return int(base * 0.70)
-    elif length <= 400:
-        return int(base * 0.55)
+    if length <= 60:
+        return base              # ~60pt
+    elif length <= 120:
+        return int(base * 0.80) # ~48pt
+    elif length <= 220:
+        return int(base * 0.65) # ~39pt
+    elif length <= 350:
+        return int(base * 0.52) # ~31pt
+    elif length <= 500:
+        return int(base * 0.43) # ~26pt
     else:
-        return max(min_sz, int(base * 0.45))
+        return max(min_sz, int(base * 0.37))  # ~22pt минимум
 
 def find_shapes(root):
     """Возвращает все sp элементы с их шириной."""
