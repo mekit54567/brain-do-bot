@@ -1,10 +1,36 @@
 """
-Гибкий парсер Word-файлов с вопросами/ответами.
-Поддерживает разные форматы — жирные заголовки, обычный текст, с комментарием и без.
+Умный парсер Word-файлов с вопросами/ответами.
+Читает параграф за параграфом, определяет тип каждого.
+Поддерживает разные форматы Brain-Do файлов.
 """
 
 import re
 from docx import Document
+
+
+# Паттерны для определения типа параграфа
+RE_QUESTION = re.compile(r'^Вопрос\s*(\d+)\s*[:\.]?\s*(.*)$', re.DOTALL | re.IGNORECASE)
+RE_ANSWER   = re.compile(r'^Ответ\s*[:\.]?\s*(.+)$', re.DOTALL | re.IGNORECASE)
+RE_COMMENT  = re.compile(r'^Комментарий\s*[:\.]?\s*(.+)$', re.DOTALL | re.IGNORECASE)
+RE_ZACHET   = re.compile(r'^Зачёт\s*[:\.]?\s*(.+)$', re.DOTALL | re.IGNORECASE)
+
+# Мусорные строки которые нужно пропускать
+RE_GARBAGE = re.compile(
+    r'^(Синхронный|Окский|Открытый|Чемпионат|Турнир|Тур\s*\d|'
+    r'\d{4}-\d{2}-\d{2}|'           # даты
+    r'www\.|http|'                   # ссылки
+    r'Давать|Зайти|Примечание|'      # редакторские пометки
+    r'Автор\s*[:\.]|Источник\s*[:\.])' ,
+    re.IGNORECASE
+)
+
+
+def clean(text: str) -> str:
+    """Чистим текст от лишних пробелов и спецсимволов."""
+    text = text.replace('\xa0', ' ')   # неразрывный пробел
+    text = re.sub(r'\n+', ' ', text)   # переносы строк
+    text = re.sub(r' {2,}', ' ', text) # множественные пробелы
+    return text.strip()
 
 
 def parse_questions(path: str) -> list[dict]:
@@ -14,76 +40,80 @@ def parse_questions(path: str) -> list[dict]:
         "number": int,
         "question": str,
         "answer": str,
-        "comment": str | None,  # может отсутствовать
-        "hard": bool,           # True если вопрос начинается со *
+        "comment": str | None,
+        "hard": bool,
     }
     """
     doc = Document(path)
-    paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
-
-    # Склеиваем весь текст для гибкого парсинга
-    full_text = "\n".join(paragraphs)
-
     questions = []
-
-    # Пробуем найти блоки через регулярки — ищем "Вопрос" и "Ответ"
-    # Паттерн: ищем блок от одного "Вопрос" до следующего
-    pattern = re.compile(
-        r"Вопрос\s*[\d№:.\-–—]*\s*:?\s*(.+?)"  # вопрос
-        r"Ответ\s*:?\s*(.+?)"                    # ответ
-        r"(?:(?:Комментарий|Зачёт)\s*:?\s*(.+?))?"  # комментарий (опционально)
-        r"(?=Вопрос\s*[\d№]|\Z)",                # до следующего вопроса или конца
-        re.DOTALL | re.IGNORECASE
-    )
-
-    matches = list(pattern.finditer(full_text))
-
-    for i, m in enumerate(matches):
-        q_text = clean(m.group(1))
-        a_text = clean(m.group(2))
-        c_text = clean(m.group(3)) if m.group(3) else None
-
-        if not q_text or not a_text:
+    
+    current = None  # текущий вопрос который собираем
+    auto_number = 0  # счётчик если номер не найден
+    
+    for para in doc.paragraphs:
+        text = clean(para.text)
+        if not text or text == '...':
             continue
-
-        # Убираем лишнее что могло попасть в ответ (до следующего ключевого слова)
-        a_text = split_at_keywords(a_text)
-        if c_text:
-            c_text = split_at_keywords(c_text)
-
-        hard = q_text.startswith("*")
-        if hard:
-            q_text = q_text.lstrip("* ").strip()
-
-        questions.append({
-            "number": i + 1,
-            "question": q_text,
-            "answer": a_text,
-            "comment": c_text,
-            "hard": hard,
-        })
-
+        
+        # Пропускаем мусорные строки
+        if RE_GARBAGE.match(text):
+            continue
+        
+        # Проверяем: это начало нового вопроса?
+        m_q = RE_QUESTION.match(text)
+        if m_q:
+            # Сохраняем предыдущий вопрос если он полный
+            if current and current.get('answer'):
+                questions.append(current)
+            
+            auto_number += 1
+            q_number = int(m_q.group(1)) if m_q.group(1) else auto_number
+            q_text = clean(m_q.group(2)) if m_q.group(2) else ''
+            
+            hard = q_text.startswith('*')
+            if hard:
+                q_text = q_text.lstrip('* ').strip()
+            
+            current = {
+                'number': auto_number,  # порядковый номер для нумерации слайдов
+                'orig_number': q_number, # оригинальный номер из файла
+                'question': q_text,
+                'answer': None,
+                'comment': None,
+                'hard': hard,
+            }
+            continue
+        
+        if current is None:
+            continue
+        
+        # Продолжение текста вопроса (если вопрос ещё не закончился)
+        m_a = RE_ANSWER.match(text)
+        m_c = RE_COMMENT.match(text)
+        m_z = RE_ZACHET.match(text)
+        
+        if m_a:
+            # Принимаем ответ только если вопрос уже есть и ответа ещё нет
+            if current['answer'] is None and current['question']:
+                current['answer'] = clean(m_a.group(1))
+        elif m_c:
+            current['comment'] = clean(m_c.group(1))
+        elif m_z:
+            # Зачёт — добавляем к комментарию или используем как комментарий
+            zachet = clean(m_z.group(1))
+            if current['comment']:
+                current['comment'] = zachet + ' | ' + current['comment']
+            else:
+                current['comment'] = zachet
+        elif current['answer'] is None:
+            # Это продолжение текста вопроса
+            if current['question']:
+                current['question'] += ' ' + text
+            else:
+                current['question'] = text
+    
+    # Не забываем последний вопрос
+    if current and current.get('answer'):
+        questions.append(current)
+    
     return questions
-
-
-def clean(text: str) -> str:
-    """Убирает лишние пробелы и переносы."""
-    if not text:
-        return ""
-    # Убираем маркеры ссылок типа [Вопрос 1](https://...)
-    text = re.sub(r"\[([^\]]+)\]\(https?://[^\)]+\)", r"\1", text)
-    # Убираем отдельные ссылки
-    text = re.sub(r"https?://\S+", "", text)
-    # Убираем лишние пробелы
-    text = re.sub(r"\n{3,}", "\n\n", text)
-    text = re.sub(r" {2,}", " ", text)
-    return text.strip()
-
-
-def split_at_keywords(text: str) -> str:
-    """Обрезаем текст если встречаем следующий ключевой блок."""
-    for kw in ["Зачёт:", "Зачет:", "Комментарий:", "Источник:", "Автор:"]:
-        idx = text.find(kw)
-        if idx > 0:
-            text = text[:idx].strip()
-    return text
