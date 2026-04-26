@@ -217,6 +217,16 @@ def apply_question(root, q, show_numbering, timer, theme):
             clear_tf(tf)
             sz = auto_sz(q["question"])
             add_paragraph(tf, q["question"], sz=sz, color=theme["text"])
+
+            # Центрируем по вертикали и включаем нормальный autofit
+            bodyPr = tf.find(f"{{{A}}}bodyPr")
+            if bodyPr is not None:
+                bodyPr.set("anchor", "ctr")
+                # Заменяем noAutofit на normAutofit
+                for child in list(bodyPr):
+                    if "Autofit" in child.tag or "autofit" in child.tag.lower():
+                        bodyPr.remove(child)
+                etree.SubElement(bodyPr, f"{{{A}}}normAutofit")
             if timer:
                 add_paragraph(tf, f"⏱ {timer} секунд", sz=2200,
                                italic=True, color=theme["accent"])
