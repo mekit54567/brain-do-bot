@@ -118,7 +118,7 @@ async def show_stats(message):
 # ─── Яндекс Диск ─────────────────────────────────────────────────────────────
 YADISK_CLIENT_ID     = os.environ.get("YADISK_CLIENT_ID", "")
 YADISK_CLIENT_SECRET = os.environ.get("YADISK_CLIENT_SECRET", "")
-YADISK_REDIRECT_URI  = "https://brain-do-bot.onrender.com/yadisk/callback"
+YADISK_REDIRECT_URI  = "https://brain-do-bot-production.up.railway.app/yadisk/callback"
 
 def yadisk_auth_url(user_id: int) -> str:
     return (
