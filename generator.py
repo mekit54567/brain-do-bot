@@ -30,7 +30,7 @@ THEMES = {
 
 def generate_presentation(questions: list, output_path: str, settings: dict):
     theme = THEMES.get(settings.get("theme", "white"), THEMES["white"])
-    show_timer = settings.get("timer")
+    
     show_numbering = settings.get("numbering", True)
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -105,7 +105,7 @@ def generate_presentation(questions: list, output_path: str, settings: dict):
                 if is_answer:
                     apply_answer(elem, q, show_numbering, theme)
                 else:
-                    apply_question(elem, q, show_numbering, show_timer, theme)
+                    apply_question(elem, q, show_numbering, theme)
 
                 etree.ElementTree(elem).write(
                     fpath, xml_declaration=True, encoding="utf-8", pretty_print=True
@@ -204,7 +204,7 @@ def find_shapes(root):
     return results
 
 
-def apply_question(root, q, show_numbering, timer, theme):
+def apply_question(root, q, show_numbering, theme):
     for sp, tf, width, all_text in find_shapes(root):
         if width < 3_000_000:
             # Маленькое поле — метка "Вопрос N"
@@ -232,12 +232,6 @@ def apply_question(root, q, show_numbering, timer, theme):
                     if "Autofit" in child.tag or "autofit" in child.tag.lower():
                         bodyPr.remove(child)
                 etree.SubElement(bodyPr, f"{{{A}}}normAutofit")
-            if timer:
-                add_paragraph(tf, f"⏱ {timer} секунд", sz=2200,
-                               italic=True, color=theme["accent"])
-            if q.get("timer_extra"):
-                add_paragraph(tf, f"+ 10 секунд на запись ответа", sz=1800,
-                               italic=True, color="888888")
             if q.get("hard"):
                 add_paragraph(tf, "★ Сложный вопрос", sz=2000,
                                bold=True, color="CC0000")

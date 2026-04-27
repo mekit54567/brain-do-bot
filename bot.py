@@ -403,14 +403,10 @@ def theme_keyboard():
 def options_keyboard(settings: dict):
     shuffle_icon = "✅" if settings["shuffle"] else "☐"
     numbering_icon = "✅" if settings["numbering"] else "☐"
-    timer_60_icon = "✅" if settings["timer"] == 60 else "☐"
-    timer_10_icon = "✅" if settings.get("timer_extra") else "☐"
 
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(f"{shuffle_icon} Перемешать вопросы", callback_data="toggle_shuffle")],
         [InlineKeyboardButton(f"{numbering_icon} Нумерация вопросов", callback_data="toggle_numbering")],
-        [InlineKeyboardButton(f"{timer_60_icon} Таймер 60 сек на вопрос", callback_data="toggle_timer_60")],
-        [InlineKeyboardButton(f"{timer_10_icon} +10 сек на запись ответа", callback_data="toggle_timer_10")],
         [InlineKeyboardButton("🚀 Создать презентацию!", callback_data="generate")],
     ])
 
@@ -452,21 +448,6 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         settings["numbering"] = not settings["numbering"]
         ctx.user_data["settings"] = settings
         await query.edit_message_reply_markup(reply_markup=options_keyboard(settings))
-
-    elif data == "toggle_timer_60":
-        settings["timer"] = None if settings["timer"] == 60 else 60
-        if not settings["timer"]:
-            settings["timer_extra"] = False
-        ctx.user_data["settings"] = settings
-        await query.edit_message_reply_markup(reply_markup=options_keyboard(settings))
-
-    elif data == "toggle_timer_10":
-        if settings["timer"] == 60:
-            settings["timer_extra"] = not settings.get("timer_extra", False)
-            ctx.user_data["settings"] = settings
-            await query.edit_message_reply_markup(reply_markup=options_keyboard(settings))
-        else:
-            await query.answer("Сначала включи таймер 60 сек!", show_alert=True)
 
     elif data == "generate":
         await query.edit_message_text(
