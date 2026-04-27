@@ -25,8 +25,6 @@ def qn(ns, tag):
 THEMES = {
     "white": {"bg": None,     "text": "000000", "accent": "CC0000"},
     "dark":  {"bg": "1E1E1E", "text": "FFFFFF", "accent": "FF4444"},
-    "blue":  {"bg": "1E3A5F", "text": "FFFFFF", "accent": "4FC3F7"},
-    "red":   {"bg": "8B0000", "text": "FFFFFF", "accent": "FFD700"},
 }
 
 
@@ -172,21 +170,21 @@ def update_content_types(unpacked, num_slides):
     tree.write(ct_path, xml_declaration=True, encoding="utf-8", pretty_print=True)
 
 
-def auto_sz(text: str, base: int = 6000, min_sz: int = 2600) -> int:
-    """Автоподбор размера шрифта по длине текста."""
+def auto_sz(text: str, max_sz: int = 4200, min_sz: int = 2200) -> int:
+    """Автоподбор размера шрифта. Макс 42pt, подгоняем чтобы текст занимал слайд."""
     length = len(text)
-    if length <= 60:
-        return base              # ~60pt
-    elif length <= 120:
-        return int(base * 0.80) # ~48pt
-    elif length <= 220:
-        return int(base * 0.65) # ~39pt
-    elif length <= 350:
-        return int(base * 0.52) # ~31pt
-    elif length <= 500:
-        return int(base * 0.43) # ~26pt
+    if length <= 80:
+        return max_sz            # 42pt
+    elif length <= 150:
+        return int(max_sz * 0.90) # ~38pt
+    elif length <= 250:
+        return int(max_sz * 0.78) # ~33pt
+    elif length <= 380:
+        return int(max_sz * 0.65) # ~27pt
+    elif length <= 550:
+        return int(max_sz * 0.55) # ~23pt
     else:
-        return max(min_sz, int(base * 0.37))  # ~22pt минимум
+        return max(min_sz, int(max_sz * 0.50))  # ~21pt минимум
 
 def find_shapes(root):
     """Возвращает все sp элементы с их шириной."""
@@ -218,8 +216,17 @@ def apply_question(root, q, show_numbering, timer, theme):
             sz = auto_sz(q["question"])
             add_paragraph(tf, q["question"], sz=sz, color=theme["text"])
 
-            # Оставляем anchor сверху как в шаблоне, просто включаем normAutofit
+            # Убираем отступы из lstStyle шаблона
+            lstStyle = tf.find(f"{{{A}}}lstStyle")
+            if lstStyle is not None:
+                for lvl in lstStyle.findall(f".//{{{A}}}pPr"):
+                    lvl.set("marL", "0")
+                    lvl.set("indent", "0")
+
+            # autofit
             bodyPr = tf.find(f"{{{A}}}bodyPr")
+            if bodyPr is None:
+                bodyPr = tf.find(f"{{{P}}}bodyPr")
             if bodyPr is not None:
                 for child in list(bodyPr):
                     if "Autofit" in child.tag or "autofit" in child.tag.lower():
@@ -228,6 +235,9 @@ def apply_question(root, q, show_numbering, timer, theme):
             if timer:
                 add_paragraph(tf, f"⏱ {timer} секунд", sz=2200,
                                italic=True, color=theme["accent"])
+            if q.get("timer_extra"):
+                add_paragraph(tf, f"+ 10 секунд на запись ответа", sz=1800,
+                               italic=True, color="888888")
             if q.get("hard"):
                 add_paragraph(tf, "★ Сложный вопрос", sz=2000,
                                bold=True, color="CC0000")
@@ -299,10 +309,12 @@ def make_run(text, bold=False, italic=False, sz=3200, color=None):
     return r
 
 
-def new_paragraph(tf, algn="l"):
+def new_paragraph(tf, algn="just"):
     p = etree.SubElement(tf, qn(A, "p"))
     pPr = etree.SubElement(p, qn(A, "pPr"))
     pPr.set("algn", algn)
+    pPr.set("indent", "0")
+    pPr.set("marL", "0")
     lnSpc = etree.SubElement(pPr, qn(A, "lnSpc"))
     spc = etree.SubElement(lnSpc, qn(A, "spcPct"))
     spc.set("val", "90000")
