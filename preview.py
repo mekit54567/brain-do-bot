@@ -29,6 +29,8 @@ FONT_FILES = {
     False: ["Carlito-Regular.ttf", "calibri.ttf", "DejaVuSans.ttf", "Arial.ttf"],
     True: ["Carlito-Bold.ttf", "calibrib.ttf", "DejaVuSans-Bold.ttf", "Arial Bold.ttf"],
 }
+SYMBOL_FONT_FILES = ["DejaVuSans.ttf", "seguisym.ttf", "Symbola.ttf"]  # для ★ и прочих значков
+SYMBOLS = set("★☆✓✔✗✘→←↑↓♪♫☺")
 LINE_HEIGHT = 1.08     # замер в PowerPoint для интервала 90%
 INSET_X, INSET_Y = 91425, 45700
 
@@ -54,6 +56,29 @@ def available() -> bool:
 def _font(bold: bool, px: int) -> ImageFont.FreeTypeFont:
     path = _font_path(bold) or _font_path(False)
     return ImageFont.truetype(path, max(px, 6))
+
+
+@lru_cache(maxsize=1)
+def _symbol_font_path() -> str | None:
+    for folder in FONT_DIRS:
+        for name in SYMBOL_FONT_FILES:
+            path = Path(folder) / name
+            if path.exists():
+                return str(path)
+    return None
+
+
+def _font_for(word: str, bold: bool, px: int) -> ImageFont.FreeTypeFont:
+    """В Calibri/Carlito нет ★ — такие слова рисуем запасным шрифтом, как это делает PowerPoint."""
+    symbol_path = _symbol_font_path()
+    if symbol_path and SYMBOLS.intersection(word):
+        return _cached_truetype(symbol_path, max(px, 6))
+    return _font(bold, px)
+
+
+@lru_cache(maxsize=16)
+def _cached_truetype(path: str, px: int) -> ImageFont.FreeTypeFont:
+    return ImageFont.truetype(path, px)
 
 
 def render(template: Template, spec: SlideSpec, dark_logo: bool = False, width: int = 1280) -> bytes:
@@ -118,7 +143,7 @@ def _draw_paragraphs(draw, paras, box, scale: float, anchor: str, default_color)
                 gap = (max_w - words_w) / gaps
             for word, bold, color, w in line:
                 fill = _rgb(color) if color else default_color
-                draw.text((x, y), word, font=_font(bold, round(px)), fill=fill)
+                draw.text((x, y), word, font=_font_for(word, bold, round(px)), fill=fill)
                 x += w + gap
             y += px * LINE_HEIGHT
 
@@ -128,7 +153,7 @@ def _wrap(runs, px: float, max_w: float) -> list[list[tuple]]:
     words = []
     for text, bold, color in runs:
         for word in text.split():
-            words.append((word, bold, color, _font(bold, round(px)).getlength(word)))
+            words.append((word, bold, color, _font_for(word, bold, round(px)).getlength(word)))
     if not words:
         return [[]]
     space = _font(False, round(px)).getlength(" ")

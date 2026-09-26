@@ -5,10 +5,12 @@ ENV PYTHONUNBUFFERED=1 \
     DATA_DIR=/data
 
 # LibreOffice — для .doc/.rtf/.odt и PDF-версии презентаций.
-# Carlito — метрический аналог Calibri, чтобы PDF выглядел как в PowerPoint.
+# Carlito — метрический аналог Calibri: PDF и предпросмотр выглядят как в PowerPoint.
+# DejaVu — запасной шрифт для значков вроде ★.
 RUN apt-get update && apt-get install -y \
     libreoffice \
     fonts-crosextra-carlito \
+    fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
