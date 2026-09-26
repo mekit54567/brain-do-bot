@@ -132,7 +132,7 @@ async def cmd_stats(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def cmd_history(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Последние пакеты — открыть и пересобрать без загрузки файла."""
-    items = session.history.list(update.effective_user.id)
+    items = session.history.entries(update.effective_user.id)
     if not items:
         await update.effective_message.reply_text("🕘 История пока пуста — пришли первый файл с вопросами.")
         return

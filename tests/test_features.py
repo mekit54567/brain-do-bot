@@ -145,7 +145,7 @@ def test_ai_review_is_skipped_without_key():
 def test_history_keeps_last_ten_and_restores(tmp_path):
     history = History(tmp_path)
     ids = [history.save(7, {"name": f"Пакет {i}", "questions": [question(1)]}) for i in range(12)]
-    items = history.list(7)
+    items = history.entries(7)
     assert len(items) == 10 and items[0]["name"] == "Пакет 11"
     assert history.load(7, ids[0]) is None                    # самые старые удалены
     assert history.latest(7)["name"] == "Пакет 11"

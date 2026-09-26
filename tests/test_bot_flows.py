@@ -98,7 +98,7 @@ def test_document_card_generate_and_stats(bot_env):
 
     run(scenario())
     assert session.stats.user(7) == {"presentations": 1, "questions": 2}
-    assert session.history.list(7)[0]["name"] == "Кубок"
+    assert session.history.entries(7)[0]["name"] == "Кубок"
 
 
 def test_busy_and_legacy_buttons(bot_env):
@@ -223,7 +223,7 @@ def test_history_command_opens_pack(bot_env):
         session.DOCS.clear()
         await handlers.cmd_history(h.text_update("/history"), h.ctx())
         listing = h.bot.last(kind="text")
-        doc_id = session.history.list(7)[0]["id"]
+        doc_id = session.history.entries(7)[0]["id"]
         assert f"h:{doc_id}" in callback_data(listing.reply_markup)
         await press(h, f"h:{doc_id}", listing)
         assert "Кубок" in listing.text and session.DOCS[7]["name"] == "Кубок"

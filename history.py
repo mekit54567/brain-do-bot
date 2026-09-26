@@ -56,7 +56,7 @@ class History:
         self._write_index(user_id, index[:KEEP])
         return doc_id
 
-    def list(self, user_id: int) -> list[dict]:
+    def entries(self, user_id: int) -> list[dict]:
         return self._index(user_id)
 
     def load(self, user_id: int, doc_id: str) -> dict | None:
