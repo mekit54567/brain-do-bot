@@ -40,6 +40,11 @@ _SEP = r"(?:\s*[:.\-–—)]\s*|\s*$)"
 RE_QUESTION = re.compile(r"^(?:Вопрос|Задание)\s*№?\s*(\d{1,3})\s*[:.)\-–—]?\s*(.*)$", re.I | re.S)
 RE_QUESTION_BARE = re.compile(r"^Вопрос\s*[:.]\s*(.*)$", re.I | re.S)
 RE_QUESTION_NUM = re.compile(r"^(\d{1,3})\s*[.)](?!\d)\s*(.+)$", re.S)
+# «39 Ортопед-травматолог…» — номер через пробел, без точки. Берём только если номер
+# идёт по порядку, иначе «300 спартанцев…» в комментарии стал бы новым вопросом
+RE_QUESTION_NUM_SPACE = re.compile(r"^(\d{1,3})\s+(?=[«\"“(\[\w*★])(.+)$", re.S)
+NUM_SPACE_MAX_GAP = 3
+RE_ELLIPSIS = re.compile(r"^[.…\s]+$")  # строки «...» между вопросом и ответом
 RE_ANSWER = re.compile(rf"^Ответы?{_SEP}(.*)$", re.I | re.S)
 RE_ACCEPT = re.compile(rf"^Зач[её]т{_SEP}(.*)$", re.I | re.S)
 RE_REJECT = re.compile(rf"^Незач[её]т{_SEP}(.*)$", re.I | re.S)
@@ -125,7 +130,8 @@ def looks_like_questions(text: str) -> bool:
     """Похоже ли сообщение на пакет вопросов (а не на обычную фразу)."""
     has_answer = any(RE_ANSWER.match(clean(s)) for s in text.splitlines())
     has_question = any(
-        RE_QUESTION.match(clean(s)) or RE_QUESTION_NUM.match(clean(s)) for s in text.splitlines()
+        RE_QUESTION.match(clean(s)) or RE_QUESTION_NUM.match(clean(s)) or RE_QUESTION_NUM_SPACE.match(clean(s))
+        for s in text.splitlines()
     )
     return has_answer and has_question
 
@@ -278,6 +284,7 @@ def _parse_lines(lines: list[Line]) -> tuple[list[dict], list[str], list[str]]:
     current: dict | None = None
     field_name: str | None = None   # куда дописывать продолжение
     tour: str | None = None
+    last_orig: int | None = None     # номер предыдущего вопроса — для «39 Текст» без точки
 
     def finish() -> None:
         if current is None:
@@ -292,7 +299,7 @@ def _parse_lines(lines: list[Line]) -> tuple[list[dict], list[str], list[str]]:
 
     for pos, line in enumerate(lines):
         text = line.text
-        if not text and not line.pictures:
+        if not line.pictures and (not text or RE_ELLIPSIS.match(text)):
             continue
 
         # Тур («Тур 2», «2 тур») — короткая отдельная строка
@@ -309,12 +316,14 @@ def _parse_lines(lines: list[Line]) -> tuple[list[dict], list[str], list[str]]:
             continue
 
         between = current is None or bool(current["answer"])
-        start = _question_start(line, between)
+        start = _question_start(line, between, last_orig)
         if start is not None:
             orig, q_text = start
             if orig is None and line.numbered:
                 # Автонумерация Word: номер в тексте не виден, считаем сами
                 orig = (current["orig_number"] or 0) + 1 if current else 1
+            if orig is not None:
+                last_orig = orig
             finish()
             hard = q_text.startswith(HARD_MARKS)
             if hard:
@@ -384,7 +393,7 @@ def _parse_lines(lines: list[Line]) -> tuple[list[dict], list[str], list[str]]:
     return questions, skipped, tours
 
 
-def _question_start(line: Line, between: bool) -> tuple[int | None, str] | None:
+def _question_start(line: Line, between: bool, last_orig: int | None = None) -> tuple[int | None, str] | None:
     """Если строка начинает новый вопрос — (номер, текст), иначе None."""
     text = line.text
     if m := RE_QUESTION.match(text):
@@ -397,6 +406,15 @@ def _question_start(line: Line, between: bool) -> tuple[int | None, str] | None:
         return None
     if m := RE_QUESTION_NUM.match(text):
         return int(m.group(1)), m.group(2).strip()
+    if m := RE_QUESTION_NUM_SPACE.match(text):
+        n = int(m.group(1))
+        in_sequence = (
+            n == 1  # нумерация началась заново (новый тур)
+            or (last_orig is None and n <= 5)
+            or (last_orig is not None and 0 < n - last_orig <= NUM_SPACE_MAX_GAP)
+        )
+        if in_sequence:
+            return n, m.group(2).strip()
     if line.numbered and len(text) > 15:
         return None, text
     return None

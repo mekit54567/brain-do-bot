@@ -122,6 +122,33 @@ def test_plain_text_and_inline_markers():
     assert r.questions[1]["comment"] == "вечный город"
 
 
+def test_numbers_without_dot_ellipsis_lines_and_numbers_in_comments(tmp_path):
+    """Формат «39 Текст» (как в пакетах-спаррингах): номер через пробел, строки «...»."""
+    path = make_docx(tmp_path, [
+        "1 В природе слоны иногда поднимают переднюю ногу.",
+        "Ответ: чтобы лучше слышать",
+        "2 Поскольку оазисы окружены пустыней, их использовали как…",
+        "...",
+        "Ответ: тюрьма",
+        "Комментарий: сбежать было некуда.",
+        "300 спартанцев тут ни при чём — это продолжение комментария.",
+        "10. Вопрос с точкой и номером не по порядку.",
+        "Ответ: 200.",
+        "11 2 октября 1879 года механик Блинов получил патент. Что он придумал?",
+        "Ответ: гусеницы",
+        "Зачёт: пяточное сухожилие.",
+        "12 Вопрос без ответа",
+    ])
+    r = p.parse_file(path)
+    assert [q["orig_number"] for q in r.questions] == [1, 2, 10, 11]
+    assert "..." not in r.questions[1]["question"]
+    assert r.questions[1]["comment"].endswith("продолжение комментария.")
+    assert r.questions[3]["question"].startswith("2 октября 1879")
+    assert r.questions[3]["accept"] == "пяточное сухожилие."
+    assert r.skipped == ["№12 — нет ответа"]
+    assert p.looks_like_questions("1 Столица Франции?\nОтвет: Париж")
+
+
 def test_plain_chat_message_is_not_a_pack():
     assert not p.looks_like_questions("Привет! Как дела?")
 
