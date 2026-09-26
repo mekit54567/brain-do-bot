@@ -58,6 +58,23 @@ def test_notes_and_question_on_answer_slide():
     assert not without.slides[0].has_notes_slide
 
 
+def test_notes_master_is_registered_in_presentation_xml():
+    """Без <p:notesMasterIdLst> iPhone (Quick Look) показывает белый экран вместо слайдов."""
+    data = g.generate_presentation([question(1)], {"notes": True})
+    with zipfile.ZipFile(io.BytesIO(data)) as zf:
+        prs = etree.fromstring(zf.read("ppt/presentation.xml"))
+        rels = etree.fromstring(zf.read("ppt/_rels/presentation.xml.rels"))
+    children = [etree.QName(el).localname for el in prs]
+    assert children[:3] == ["sldMasterIdLst", "notesMasterIdLst", "sldIdLst"]
+    rid = prs.find(f"{{{g.P}}}notesMasterIdLst/{{{g.P}}}notesMasterId").get(f"{{{g.R_NS}}}id")
+    target = {r.get("Id"): r.get("Target") for r in rels}[rid]
+    assert target.endswith("notesMasters/notesMaster1.xml")
+
+    without = g.generate_presentation([question(1)], {"notes": False})
+    with zipfile.ZipFile(io.BytesIO(without)) as zf:
+        assert b"notesMasterIdLst" not in zf.read("ppt/presentation.xml")
+
+
 def test_custom_template_keeps_its_colors_and_drops_its_notes():
     tpl = g.validate_template(custom_template(with_notes=True))
     assert tpl.question.label_id is not None

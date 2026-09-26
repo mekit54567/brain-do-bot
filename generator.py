@@ -468,9 +468,29 @@ def _add_notes(data: bytes, notes: list[str | None]) -> bytes:
     for slide, text in zip(prs.slides, notes):
         if text:
             slide.notes_slide.notes_text_frame.text = text
+    _register_notes_master(prs)
     out = io.BytesIO()
     prs.save(out)
     return out.getvalue()
+
+
+def _register_notes_master(prs) -> None:
+    """python-pptx создаёт мастер заметок, но не вписывает его в presentation.xml.
+    PowerPoint для Windows это прощает, а просмотр на iPhone (Quick Look) показывает
+    белый экран. Добавляем <p:notesMasterIdLst> сразу после sldMasterIdLst, как PowerPoint."""
+    from pptx.opc.constants import RELATIONSHIP_TYPE as RT
+
+    root = prs.part._element
+    if root.find(qn(P, "notesMasterIdLst")) is not None:
+        return
+    try:
+        master_part = prs.part.part_related_by(RT.NOTES_MASTER)
+    except KeyError:
+        return
+    rid = prs.part.relate_to(master_part, RT.NOTES_MASTER)  # вернёт существующий rId
+    id_lst = etree.Element(qn(P, "notesMasterIdLst"))
+    etree.SubElement(id_lst, qn(P, "notesMasterId")).set(qn(R_NS, "id"), rid)
+    root.find(qn(P, "sldMasterIdLst")).addnext(id_lst)
 
 
 class _Media:
