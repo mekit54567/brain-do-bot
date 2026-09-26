@@ -11,6 +11,15 @@ BASE_DIR = Path(__file__).resolve().parent
 # ─── Telegram ────────────────────────────────────────────────────────────────
 BOT_TOKEN: str = os.environ.get("BOT_TOKEN", "")
 
+# ─── Доступ ──────────────────────────────────────────────────────────────────
+# ADMIN_IDS — Telegram ID админов через запятую (свой ID покажет команда /id).
+# Админам приходят ошибки бота и запросы доступа.
+ADMIN_IDS: set[int] = {
+    int(x) for x in os.environ.get("ADMIN_IDS", "").replace(" ", "").split(",") if x.strip().lstrip("-").isdigit()
+}
+# open — бот доступен всем; private — только админам и одобренным пользователям
+ACCESS_MODE: str = os.environ.get("ACCESS_MODE", "open").strip().lower()
+
 # ─── Groq (Llama 4 Scout) ────────────────────────────────────────────────────
 GROQ_API_KEY: str = os.environ.get("GROQ_API_KEY", "")
 GROQ_MODEL: str = os.environ.get("GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
@@ -60,11 +69,16 @@ QUESTION_LIST_PAGE_CHARS: int = 3500
 
 # ─── Настройки презентации по умолчанию ─────────────────────────────────────
 DEFAULT_SETTINGS: dict = {
-    "theme": "white",      # white | dark
+    "theme": "white",      # white | dark | template (только со своим шаблоном)
     "numbering": "seq",    # seq (1..N) | orig (как в файле) | none
     "shuffle": False,
     "pdf": False,          # дополнительно прислать PDF
+    "notes": True,         # ответ в заметках ведущего
+    "q_on_answer": False,  # текст вопроса мелко на слайде ответа
+    "service": False,      # титульный слайд, разделители туров, финальный слайд
     "instant": False,      # сразу делать презентацию после загрузки файла
 }
+
+TEMPLATES_DIR: Path = DATA_DIR / "templates"  # свои шаблоны пользователей
 
 SIGNATURE: str = "powered by Nikita to папа ❤️"

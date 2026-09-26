@@ -18,12 +18,17 @@ from telegram.ext import (
     MessageHandler,
     PersistenceInput,
     PicklePersistence,
+    TypeHandler,
     filters,
 )
 
+import admin
 import handlers
+import session
 import yadisk
-from config import BOT_TOKEN, DATA_DIR, PERSISTENCE_FILE, SERVER_PORT
+from access import Access
+from config import ACCESS_MODE, ADMIN_IDS, BOT_TOKEN, DATA_DIR, PERSISTENCE_FILE, SERVER_PORT
+from history import History
 from storage import Stats, TokenStore
 
 logging.basicConfig(
@@ -36,9 +41,11 @@ logger = logging.getLogger(__name__)
 COMMANDS = [
     BotCommand("start", "Главное меню"),
     BotCommand("settings", "Настройки презентации"),
+    BotCommand("history", "Последние пакеты"),
     BotCommand("yadisk", "Файлы с Яндекс Диска"),
     BotCommand("stats", "Статистика"),
     BotCommand("help", "Как пользоваться"),
+    BotCommand("id", "Мой Telegram ID"),
 ]
 
 PAGE = """<!doctype html><html lang="ru"><head><meta charset="utf-8">
@@ -83,7 +90,7 @@ class WebHandler(BaseHTTPRequestHandler):
             self._page(400, "😕", "Яндекс не выдал доступ. Попробуй войти ещё раз.")
             return
 
-        handlers.tokens.set(user_id, token)
+        session.tokens.set(user_id, token)
         asyncio.run_coroutine_threadsafe(
             handlers.notify_yadisk_connected(self.app, user_id, chat_id), self.loop
         )
@@ -129,8 +136,12 @@ def main() -> None:
         raise RuntimeError("Не задана переменная окружения BOT_TOKEN")
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    handlers.stats = Stats()
-    handlers.tokens = TokenStore()
+    session.stats = Stats()
+    session.tokens = TokenStore()
+    session.history = History()
+    session.access = Access()
+    if ACCESS_MODE == "private" and not ADMIN_IDS:
+        logger.warning("ACCESS_MODE=private, но ADMIN_IDS пуст — одобрять запросы доступа некому")
 
     app = (
         Application.builder()
@@ -145,11 +156,18 @@ def main() -> None:
         .build()
     )
 
+    # Проверка доступа — раньше всех обработчиков (группа -1)
+    app.add_handler(TypeHandler(Update, admin.access_guard), group=-1)
+
     app.add_handler(CommandHandler("start", handlers.cmd_start))
     app.add_handler(CommandHandler("help", handlers.cmd_help))
     app.add_handler(CommandHandler("settings", handlers.cmd_settings))
     app.add_handler(CommandHandler("stats", handlers.cmd_stats))
     app.add_handler(CommandHandler("yadisk", handlers.cmd_yadisk))
+    app.add_handler(CommandHandler("history", handlers.cmd_history))
+    app.add_handler(CommandHandler("id", admin.cmd_id))
+    app.add_handler(CommandHandler("invite", admin.cmd_invite))
+    app.add_handler(CommandHandler("users", admin.cmd_users))
     app.add_handler(MessageHandler(filters.Document.ALL, handlers.handle_document))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handlers.handle_text))
     app.add_handler(CallbackQueryHandler(handlers.handle_callback))

@@ -1,21 +1,44 @@
-import struct
-import zlib
+import os
+import tempfile
 
-import pytest
+# До импорта модулей бота: данные — во временную папку, без внешних сервисов
+os.environ["DATA_DIR"] = tempfile.mkdtemp(prefix="brain_do_test_")
+os.environ["GROQ_API_KEY"] = ""
+os.environ["YADISK_CLIENT_ID"] = "test-id"
+os.environ["YADISK_CLIENT_SECRET"] = "test-secret"
 
+import pytest  # noqa: E402
 
-def _chunk(kind: bytes, data: bytes) -> bytes:
-    return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+from tests.fakes import make_png  # noqa: E402
 
 
 @pytest.fixture
 def png_bytes() -> bytes:
-    """Настоящий PNG 4×3 (синий) без внешних библиотек."""
-    width, height = 4, 3
-    raw = b"".join(b"\x00" + b"\x28\x78\xc8" * width for _ in range(height))
-    return (
-        b"\x89PNG\r\n\x1a\n"
-        + _chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
-        + _chunk(b"IDAT", zlib.compress(raw))
-        + _chunk(b"IEND", b"")
-    )
+    return make_png()
+
+
+@pytest.fixture
+def bot_env(tmp_path, monkeypatch):
+    """Чистое состояние бота на каждый тест."""
+    import access
+    import handlers
+    import session
+    import storage
+    from history import History
+    from tests.fakes import FakeBot
+
+    monkeypatch.setattr(storage, "STATS_FILE", tmp_path / "stats.json")
+    monkeypatch.setattr(storage, "YADISK_TOKENS_FILE", tmp_path / "tokens.json")
+    monkeypatch.setattr(storage, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(access, "ACCESS_FILE", tmp_path / "access.json")
+    monkeypatch.setattr(session, "TEMPLATES_DIR", tmp_path / "templates")
+
+    session.stats = storage.Stats()
+    session.tokens = storage.TokenStore()
+    session.history = History(tmp_path / "history")
+    session.access = access.Access()
+    session.DOCS.clear()
+    session.BUSY.clear()
+    session.PENDING_TEMPLATES.clear()
+    handlers.LAST_ORDER.clear()
+    return FakeBot()
